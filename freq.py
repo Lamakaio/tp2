@@ -1,7 +1,7 @@
 import sys
 import re
 
-assert(len(sys.argv) == 4, "Wrong number of arguments. Syntax is freq [book] [stopwords] [n]")
+assert len(sys.argv) == 4, "Wrong number of arguments. Syntax is freq [book] [stopwords] [n]"
 try: 
     n = int(sys.argv[3])
 except:
@@ -21,7 +21,7 @@ def make_stopword_dict(filename):
 def calc_occurences(filename, stopwords):
     with open(filename, "r") as f:
         s = f.read()
-        wordslist = re.split("[^\w]", s.lower())
+        wordslist = re.split("[^a-z]", s.lower())
         finaldict = {}
         for w in wordslist: 
             if len(w) > 1 and w not in stopwords:
