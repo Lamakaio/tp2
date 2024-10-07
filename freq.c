@@ -10,7 +10,7 @@ static inline int is_letter(char *c) {
 
 size_t hash(char *str)
 {
-    size_t hash = 39201765568162677;
+    size_t hash = 5381;
     for (unsigned char *c = (unsigned char *) str; *c; c++)
         hash = ((hash << 5) + hash) + *c; /* hash * 33 + c */
     return hash;
