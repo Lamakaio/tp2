@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int is_letter(char *c) {
+static inline int is_letter(char *c) {
     if (*c >= 'A' && *c <= 'Z') *c = *c + 32;
     return *c >= 'a' && *c <= 'z';
 }
@@ -35,6 +35,9 @@ static size_t hmap_po2_size = 17; //2**17 ~= 130000, sounds ok.
 
 static List dummy;
 
+//suppose there is no hash collision
+//but it's pretty unlikely here. 
+//Note that only a collision between one of the top words and one of the stopwords would matter. 
 int is_stopword(size_t hash) {
     for (size_t i = 0; i < n_stopwords; i++) {
         if (hash == stopword_hashes[i]) return 1;
@@ -42,10 +45,12 @@ int is_stopword(size_t hash) {
     return 0;
 }
 
+//Get the lower bits of the hash to get a table index
 size_t index_from_hash(size_t h, size_t po2) {
     return (h << (sizeof(size_t)*8 - po2)) >> (sizeof(size_t)*8 - po2);
 }
 
+//Get a pointer to the hmap element. Insert it if it wasn't in the table (0-init)
 List* hmap_get_or_insert(HashMap* hmap, char* str) {
     size_t h = hash(str);
     if (strlen(str) < 2 || is_stopword(h)) return &dummy;
@@ -54,7 +59,9 @@ List* hmap_get_or_insert(HashMap* hmap, char* str) {
     if (hmap->internal_array[index].str) {
         List* prev = &hmap->internal_array[index];
         for (List* l = &hmap->internal_array[index]; l != NULL && l->str != NULL; l = l->next) {
-            if (strcmp(l->str, str) == 0) return l;
+            if (strcmp(l->str, str) == 0) {
+                return l;
+            }
             prev = l;
         }
         hmap->nelem++;
@@ -76,6 +83,8 @@ typedef struct Pair {
     char* str;
 } Pair;
 
+//Empty the hmap (freeing the memory allocated by hmap_get_or_insert) 
+//And construct a table of all elements in it. 
 Pair* hmap_consume_to_array(HashMap* hmap) {
     Pair* ret_table = malloc(hmap->nelem * sizeof(Pair));
     size_t table_index = 0;
@@ -94,13 +103,18 @@ Pair* hmap_consume_to_array(HashMap* hmap) {
     return ret_table;
 }
 
+//Quicksort a table of pairs according to the second element. 
 void quicksort(Pair* table, size_t nelem) {
     if (nelem <= 1) return;
 
     size_t pi = 0;
     // always i > pi
     for (size_t i = 1; i < nelem; i++) {
-        if (table[pi].n < table[i].n) { //wrong order
+        if (table[pi].n < table[i].n) { //the two elems are in wrong order
+            //to avoid copies, we move the pivot one spot to the right
+            //then the element on that spot (it's necessarily bigger than pivot anyway), to the element we just compared
+            //then the element we just compared, at the pivot's old spot (so before the pivot)
+            //Note that this makes the algo non-stable, but we don't care
             Pair tmp = table[pi];
             table[pi] = table[i];
             table[i] = table[pi + 1];
@@ -115,6 +129,9 @@ void quicksort(Pair* table, size_t nelem) {
 }
 static size_t stopwords_total_size = 1000;
 
+//Make a hash array of the stopwords. 
+//It's relatively small so iterating over it to test is pretty fast
+//As the memory accesses are all concurrent (and so cached)
 void make_stopwords_hashes(char* filename) {
     FILE *fptr;
     fptr = fopen(filename, "r");
@@ -133,7 +150,6 @@ void make_stopwords_hashes(char* filename) {
             if (c != prev_str_start) {
                 *c = 0;
                 size_t h = hash(prev_str_start);
-                //printf("%s %lu\n", prev_str_start, h);
                 stopword_hashes[n_stopwords++] = h;
             }
             prev_str_start = c+1;
@@ -142,6 +158,7 @@ void make_stopwords_hashes(char* filename) {
     free(lineptr);
 }
 
+//add all the words in the book to the hashmap
 void add_words_to_hmap(char* filename, HashMap *hmap) {
     FILE *fptr;
     fptr = fopen(filename, "r");
