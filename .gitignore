@@ -1,4 +1,6 @@
 *.out
 *.cmi
 *.cmo
+*.cmx
+*.dump
 *.o
