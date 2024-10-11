@@ -29,7 +29,7 @@ typedef struct HashMap {
 } HashMap;
 
 static size_t n_stopwords = 0;
-static size_t stopword_hashes[100];
+static size_t stopword_hashes[150];
 static size_t max_line_size = 200;
 static size_t hmap_po2_size = 17; //2**17 ~= 130000, sounds ok. 
 
@@ -136,7 +136,7 @@ void make_stopwords_hashes(char* filename) {
     FILE *fptr;
     fptr = fopen(filename, "r");
     if(fptr == NULL) {
-        fprintf(stderr, "Error : %s no such file", filename);
+        fprintf(stderr, "Error : %s no such file\n", filename);
         exit(1);
     }
     char* lineptr = 0;
@@ -145,6 +145,7 @@ void make_stopwords_hashes(char* filename) {
     fclose(fptr); 
 
     char* prev_str_start = lineptr;
+    char* c;
     for (char* c = lineptr; *c ; c++) {
         if (!is_letter(c)) {
             if (c != prev_str_start) {
@@ -155,6 +156,10 @@ void make_stopwords_hashes(char* filename) {
             prev_str_start = c+1;
         }
     }
+    if (c != prev_str_start) {
+        size_t h = hash(prev_str_start);
+        stopword_hashes[n_stopwords++] = h;
+    }
     free(lineptr);
 }
 
@@ -163,10 +168,9 @@ void add_words_to_hmap(char* filename, HashMap *hmap) {
     FILE *fptr;
     fptr = fopen(filename, "r");
     if(fptr == NULL) {
-        fprintf(stderr, "Error : %s no such file", filename);
+        fprintf(stderr, "Error : %s no such file\n", filename);
         exit(1);
     }
-    
     
     char* lineptr = 0;
     while (getline(&lineptr, &max_line_size, fptr) != -1) {
@@ -194,7 +198,7 @@ int main(int argc, char** argv) {
     char* end;
     long n = strtol(argv[3], &end, 10);
     if (end == argv[3] || *end != 0) {
-        fprintf(stderr, "n must be an integer");
+        fprintf(stderr, "n must be an integer\n");
         exit(1);
     }
 
@@ -209,8 +213,8 @@ int main(int argc, char** argv) {
     Pair* table = hmap_consume_to_array(&hashmap);
     quicksort(table, hashmap.nelem);
 
-    for (int i = 0; i < n; i++) {
-        printf("%d: \"%s\", with %d occurences\n", i, table[i].str, table[i].n);
+    for (int i = 0; i < n && i < hashmap.nelem; i++) {
+        fprintf(stderr, "%d: \"%s\", with %d occurences\n", i, table[i].str, table[i].n);
     }
 
     free(hashmap.internal_array);
